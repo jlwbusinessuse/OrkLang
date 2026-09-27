@@ -1,4 +1,5 @@
 using OrkLang2027.Lexing;
+using OrkLang2027.Typing;
 
 namespace OrkLang2027.Ast
 {
@@ -19,8 +20,9 @@ namespace OrkLang2027.Ast
         internal sealed class VarDecl : Stmt
         {
             public Token Name { get; }
-            public Expr? Initializer { get; }
-            public VarDecl(Token name, Expr? initializer) { Name = name; Initializer = initializer; }
+            public OrkType Type { get; }
+            public Expr Initializer { get; }
+            public VarDecl(Token name, OrkType type, Expr initializer) { Name = name; Type = type; Initializer = initializer; }
         }
 
         internal sealed class Block : Stmt
@@ -48,13 +50,19 @@ namespace OrkLang2027.Ast
         {
             public Token Name { get; }
             public List<Token> Parameters { get; }
+            public List<OrkType> ParameterTypes { get; }
+            public OrkType ReturnType { get; }
             public List<Stmt> Body { get; }
-            public FunctionDecl(Token name, List<Token> parameters, List<Stmt> body)
+            public FunctionDecl(Token name, List<Token> parameters, List<OrkType> parameterTypes, OrkType returnType, List<Stmt> body)
             {
                 Name = name;
                 Parameters = parameters;
+                ParameterTypes = parameterTypes;
+                ReturnType = returnType;
                 Body = body;
             }
+
+            public OrkType FunctionType => OrkType.FunctionOf(ParameterTypes, ReturnType);
         }
 
         internal sealed class Return : Stmt

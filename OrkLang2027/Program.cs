@@ -2,6 +2,7 @@
 using OrkLang2027.Compiling;
 using OrkLang2027.Lexing;
 using OrkLang2027.Parsing;
+using OrkLang2027.Typing;
 using OrkLang2027.VM;
 
 namespace OrkLang2027
@@ -13,20 +14,20 @@ namespace OrkLang2027
     internal class Program
     {
         private const string SampleScript = @"
-fun fib(n) {
+fun fib(n: number): number {
     if (n < 2) {
         return n;
     }
     return fib(n - 1) + fib(n - 2);
 }
 
-var i = 0;
+var i: number = 0;
 while (i < 10) {
     print fib(i);
     i = i + 1;
 }
 
-var message = ""Hello"" + "", "" + ""OrkLang!"";
+var message: string = ""Hello"" + "", "" + ""OrkLang!"";
 print message;
 ";
 
@@ -106,7 +107,7 @@ print message;
                 InterpretResult result = vm.Run(script);
                 return result == InterpretResult.Ok ? 0 : 1;
             }
-            catch (Exception ex) when (ex is LexException or ParseException or CompileException or InvalidDataException)
+            catch (Exception ex) when (ex is LexException or ParseException or TypeException or CompileException or InvalidDataException)
             {
                 Console.Error.WriteLine($"Error: {ex.Message}");
                 return 1;
@@ -146,7 +147,7 @@ print message;
                 Console.WriteLine($"Compiled '{inputPath}' -> '{outputPath}'.");
                 return 0;
             }
-            catch (Exception ex) when (ex is LexException or ParseException or CompileException)
+            catch (Exception ex) when (ex is LexException or ParseException or TypeException or CompileException)
             {
                 Console.Error.WriteLine($"Error: {ex.Message}");
                 return 1;
@@ -162,6 +163,8 @@ print message;
 
             var parser = new Parser(tokens);
             var statements = parser.Parse();
+
+            TypeChecker.Check(statements);
 
             return Compiler.CompileScript(statements);
         }
@@ -185,6 +188,11 @@ print message;
             catch (ParseException ex)
             {
                 Console.Error.WriteLine($"Parse error: {ex.Message}");
+                return 1;
+            }
+            catch (TypeException ex)
+            {
+                Console.Error.WriteLine(ex.Message);
                 return 1;
             }
             catch (CompileException ex)

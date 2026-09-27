@@ -4,7 +4,7 @@ namespace OrkLang2027.Lexing
     {
         // Single-character tokens
         LeftParen, RightParen, LeftBrace, RightBrace, LeftBracket, RightBracket,
-        Comma, Dot, Minus, Plus, Semicolon, Slash, Star, Percent,
+        Comma, Dot, Colon, Minus, Plus, Semicolon, Slash, Star, Percent,
 
         // One or two character tokens
         Bang, BangEqual,

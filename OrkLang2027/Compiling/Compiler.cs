@@ -1,6 +1,7 @@
 using OrkLang2027.Ast;
 using OrkLang2027.Bytecode;
 using OrkLang2027.Lexing;
+using OrkLang2027.Typing;
 
 namespace OrkLang2027.Compiling
 {
@@ -29,6 +30,7 @@ namespace OrkLang2027.Compiling
         private readonly ObjFunction _function;
         private readonly List<Local> _locals = new();
         private int _scopeDepth;
+        private OrkType? _returnType;
 
         private Compiler(string name, int arity)
         {
@@ -91,6 +93,7 @@ namespace OrkLang2027.Compiling
                     {
                         Emit(OpCode.Nil, returnStmt.Keyword.Line);
                     }
+                    if (_returnType != null) EmitCheckType(_returnType, returnStmt.Keyword.Line);
                     Emit(OpCode.Return, returnStmt.Keyword.Line);
                     break;
 
@@ -103,6 +106,7 @@ namespace OrkLang2027.Compiling
         {
             var fnCompiler = new Compiler(fnDecl.Name.Lexeme, fnDecl.Parameters.Count);
             fnCompiler._scopeDepth = 1;
+            fnCompiler._returnType = fnDecl.ReturnType;
             // Slot 0 in every call frame is reserved for the function value itself
             // (the callee sits below its arguments on the stack), so reserve it here.
             fnCompiler._locals.Add(new Local { Name = string.Empty, Depth = 1 });
@@ -111,12 +115,22 @@ namespace OrkLang2027.Compiling
                 fnCompiler._locals.Add(new Local { Name = param.Lexeme, Depth = 1 });
             }
 
+            for (int i = 0; i < fnDecl.Parameters.Count; i++)
+            {
+                int line = fnDecl.Parameters[i].Line;
+                fnCompiler.Emit(OpCode.GetLocal, line);
+                fnCompiler.EmitByte((byte)(i + 1), line);
+                fnCompiler.EmitCheckType(fnDecl.ParameterTypes[i], line);
+                fnCompiler.Emit(OpCode.Pop, line);
+            }
+
             foreach (var bodyStmt in fnDecl.Body)
             {
                 fnCompiler.CompileStmt(bodyStmt);
             }
             // implicit return nil if the body falls through
             fnCompiler.Emit(OpCode.Nil, fnDecl.Name.Line);
+            fnCompiler.EmitCheckType(fnDecl.ReturnType, fnDecl.Name.Line);
             fnCompiler.Emit(OpCode.Return, fnDecl.Name.Line);
 
             var fnValue = Value.FromFunction(fnCompiler._function);
@@ -159,15 +173,15 @@ namespace OrkLang2027.Compiling
 
         private void CompileVarDecl(Stmt.VarDecl varDecl)
         {
-            if (varDecl.Initializer != null)
-            {
-                CompileExpr(varDecl.Initializer);
-            }
-            else
-            {
-                Emit(OpCode.Nil, varDecl.Name.Line);
-            }
+            CompileExpr(varDecl.Initializer);
+            EmitCheckType(varDecl.Type, varDecl.Name.Line);
             DefineVariable(varDecl.Name);
+        }
+
+        private void EmitCheckType(OrkType type, int line)
+        {
+            Emit(OpCode.CheckType, line);
+            EmitByte((byte)type.RuntimeKind, line);
         }
 
         private void DefineVariable(Token name)
@@ -226,6 +240,7 @@ namespace OrkLang2027.Compiling
 
                 case Expr.Assign assign:
                     CompileExpr(assign.Value);
+                    if (assign.CheckedType != null) EmitCheckType(assign.CheckedType, assign.Name.Line);
                     CompileVariableSet(assign.Name);
                     break;
 
@@ -252,6 +267,7 @@ namespace OrkLang2027.Compiling
                     CompileExpr(indexSet.Target);
                     CompileExpr(indexSet.Index);
                     CompileExpr(indexSet.Value);
+                    if (indexSet.CheckedType != null) EmitCheckType(indexSet.CheckedType, indexSet.Bracket.Line);
                     Emit(OpCode.IndexSet, indexSet.Bracket.Line);
                     break;
 

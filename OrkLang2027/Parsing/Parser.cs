@@ -1,5 +1,6 @@
 using OrkLang2027.Ast;
 using OrkLang2027.Lexing;
+using OrkLang2027.Typing;
 
 namespace OrkLang2027.Parsing
 {
@@ -13,8 +14,10 @@ namespace OrkLang2027.Parsing
     /// Grammar (roughly):
     /// program        -> declaration* EOF
     /// declaration    -> funDecl | varDecl | statement
-    /// funDecl        -> "fun" IDENTIFIER "(" parameters? ")" block
-    /// varDecl        -> ("var"|type) IDENTIFIER ("=" expression)? ";"
+    /// funDecl        -> "fun" IDENTIFIER "(" parameters? ")" ":" type block
+    /// parameters     -> IDENTIFIER ":" type ( "," IDENTIFIER ":" type )*
+    /// varDecl        -> "var" IDENTIFIER ":" type "=" expression ";"
+    /// type           -> ("number"|"string"|"bool"|"nil") ( "[" "]" )*
     /// statement      -> exprStmt | printStmt | block | ifStmt | whileStmt | forStmt | returnStmt
     /// expression     -> assignment
     /// assignment     -> IDENTIFIER "=" assignment | logic_or
@@ -48,14 +51,25 @@ namespace OrkLang2027.Parsing
         private Stmt Declaration()
         {
             if (Match(TokenType.Fun)) return FunctionDeclaration("function");
-            if (IsTypeStart()) return VarDeclaration();
+            if (Match(TokenType.Var)) return VarDeclaration();
             return Statement();
         }
 
-        private bool IsTypeStart()
+        private OrkType ParseType()
         {
-            return Check(TokenType.Var) || Check(TokenType.Int) || Check(TokenType.Double)
-                || Check(TokenType.Bool) || Check(TokenType.StringType);
+            OrkType type;
+            if (Match(TokenType.StringType)) type = OrkType.String;
+            else if (Match(TokenType.Bool)) type = OrkType.Bool;
+            else if (Match(TokenType.Nil)) type = OrkType.Nil;
+            else if (Check(TokenType.Identifier) && Peek().Lexeme == "number") { Advance(); type = OrkType.Number; }
+            else throw Error(Peek(), "Expect type (number, string, bool, nil or T[]).");
+
+            while (Match(TokenType.LeftBracket))
+            {
+                Consume(TokenType.RightBracket, "Expect ']' in array type.");
+                type = OrkType.ArrayOf(type);
+            }
+            return type;
         }
 
         private Stmt FunctionDeclaration(string kind)
@@ -63,32 +77,34 @@ namespace OrkLang2027.Parsing
             Token name = Consume(TokenType.Identifier, $"Expect {kind} name.");
             Consume(TokenType.LeftParen, "Expect '(' after function name.");
             var parameters = new List<Token>();
+            var parameterTypes = new List<OrkType>();
             if (!Check(TokenType.RightParen))
             {
                 do
                 {
-                    // optional type before parameter name
-                    if (IsTypeStart()) Advance();
-                    parameters.Add(Consume(TokenType.Identifier, "Expect parameter name."));
+                    Token param = Consume(TokenType.Identifier, "Expect parameter name.");
+                    Consume(TokenType.Colon, $"Expect ':' and a type after parameter '{param.Lexeme}'.");
+                    parameters.Add(param);
+                    parameterTypes.Add(ParseType());
                 } while (Match(TokenType.Comma));
             }
             Consume(TokenType.RightParen, "Expect ')' after parameters.");
+            Consume(TokenType.Colon, $"Expect ':' and a return type after parameters of '{name.Lexeme}'.");
+            OrkType returnType = ParseType();
             Consume(TokenType.LeftBrace, "Expect '{' before function body.");
             var body = Block();
-            return new Stmt.FunctionDecl(name, parameters, body);
+            return new Stmt.FunctionDecl(name, parameters, parameterTypes, returnType, body);
         }
 
         private Stmt VarDeclaration()
         {
-            Advance(); // consume the type/var keyword
             Token name = Consume(TokenType.Identifier, "Expect variable name.");
-            Expr? initializer = null;
-            if (Match(TokenType.Equal))
-            {
-                initializer = Expression();
-            }
+            Consume(TokenType.Colon, $"Expect ':' and a type after variable name '{name.Lexeme}'.");
+            OrkType type = ParseType();
+            Consume(TokenType.Equal, $"Variable '{name.Lexeme}' must be initialized.");
+            Expr initializer = Expression();
             Consume(TokenType.Semicolon, "Expect ';' after variable declaration.");
-            return new Stmt.VarDecl(name, initializer);
+            return new Stmt.VarDecl(name, type, initializer);
         }
 
         private Stmt Statement()
@@ -123,7 +139,7 @@ namespace OrkLang2027.Parsing
             {
                 initializer = null;
             }
-            else if (IsTypeStart())
+            else if (Match(TokenType.Var))
             {
                 initializer = VarDeclaration();
             }

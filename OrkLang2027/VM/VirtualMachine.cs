@@ -222,6 +222,17 @@ namespace OrkLang2027.VM
                     case OpCode.Halt:
                         return InterpretResult.Ok;
 
+                    case OpCode.CheckType:
+                    {
+                        var expected = (ValueKind)ReadByte(frame);
+                        ValueKind actual = Peek(0).Kind;
+                        if (actual != expected)
+                        {
+                            throw new VmRuntimeException($"Type error: expected {expected.ToString().ToLowerInvariant()} but got {actual.ToString().ToLowerInvariant()}.");
+                        }
+                        break;
+                    }
+
                     case OpCode.BuildArray:
                     {
                         int count = ReadByte(frame);

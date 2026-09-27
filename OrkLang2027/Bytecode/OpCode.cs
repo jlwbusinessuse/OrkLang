@@ -44,5 +44,7 @@ namespace OrkLang2027.Bytecode
         ArrayLength,  // pops array; pushes its length
 
         Halt,
+
+        CheckType,    // operand: expected ValueKind; peeks top value, errors on mismatch
     }
 }

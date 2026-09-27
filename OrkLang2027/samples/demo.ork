@@ -1,11 +1,11 @@
-fun greet(name) {
+fun greet(name: string): nil {
 	print "Hello, " + name + "!";
 }
 
 greet("Ork");
 
-var total = 0;
-var i = 1;
+var total: number = 0;
+var i: number = 1;
 while (i <= 5) {
 	total = total + i;
 	i = i + 1;

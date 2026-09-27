@@ -1,6 +1,6 @@
 // Array feature test: literals, indexing, mutation, length, nested arrays, functions.
 
-var nums = [10, 20, 30, 40, 50];
+var nums: number[] = [10, 20, 30, 40, 50];
 print nums;
 print nums.length;
 print nums[0];
@@ -9,21 +9,21 @@ print nums[4];
 nums[2] = 999;
 print nums;
 
-var i = 0;
-var total = 0;
+var i: number = 0;
+var total: number = 0;
 while (i < nums.length) {
 	total = total + nums[i];
 	i = i + 1;
 }
 print total;
 
-var matrix = [[1, 2], [3, 4], [5, 6]];
+var matrix: number[][] = [[1, 2], [3, 4], [5, 6]];
 print matrix[1][0];
 print matrix[2][1];
 
-fun sum(arr) {
-	var s = 0;
-	var idx = 0;
+fun sum(arr: number[]): number {
+	var s: number = 0;
+	var idx: number = 0;
 	while (idx < arr.length) {
 		s = s + arr[idx];
 		idx = idx + 1;
@@ -33,9 +33,9 @@ fun sum(arr) {
 
 print sum([1, 2, 3, 4, 5]);
 
-var words = ["hello", "ork", "lang"];
+var words: string[] = ["hello", "ork", "lang"];
 print words[1] + words[2];
 print words.length;
 
-var empty = [];
+var empty: number[] = [];
 print empty.length;

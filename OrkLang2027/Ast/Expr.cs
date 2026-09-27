@@ -1,4 +1,5 @@
 using OrkLang2027.Lexing;
+using OrkLang2027.Typing;
 
 namespace OrkLang2027.Ast
 {
@@ -20,6 +21,8 @@ namespace OrkLang2027.Ast
         {
             public Token Name { get; }
             public Expr Value { get; }
+            /// <summary>Declared type of the target, filled in by the type checker.</summary>
+            public OrkType? CheckedType { get; set; }
             public Assign(Token name, Expr value) { Name = name; Value = value; }
         }
 
@@ -95,6 +98,8 @@ namespace OrkLang2027.Ast
             public Token Bracket { get; }
             public Expr Index { get; }
             public Expr Value { get; }
+            /// <summary>Element type of the target array, filled in by the type checker.</summary>
+            public OrkType? CheckedType { get; set; }
             public IndexSet(Expr target, Token bracket, Expr index, Expr value)
             {
                 Target = target;
