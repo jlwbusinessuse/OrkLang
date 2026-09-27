@@ -1,4 +1,4 @@
-﻿using OrkLang2027.Bytecode;
+using OrkLang2027.Bytecode;
 using OrkLang2027.Compiling;
 using OrkLang2027.Lexing;
 using OrkLang2027.Parsing;
@@ -14,14 +14,14 @@ namespace OrkLang2027
     internal class Program
     {
         private const string SampleScript = @"
-fun fib(n: number): number {
+fun fib(n: int): int {
     if (n < 2) {
         return n;
     }
     return fib(n - 1) + fib(n - 2);
 }
 
-var i: number = 0;
+var i: int = 0;
 while (i < 10) {
     print fib(i);
     i = i + 1;

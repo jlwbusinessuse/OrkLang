@@ -18,7 +18,7 @@ namespace OrkLang2027.Lexing
 
         // Keywords
         And, Or, Class, Else, False, For, Fun, If, Nil, Print,
-        Return, Super, This, True, Var, While, Int, Double, Bool, StringType, Void,
+        Return, Super, This, True, Var, While, Int, Double, Long, Float, Bool, StringType, Void,
 
         Eof
     }

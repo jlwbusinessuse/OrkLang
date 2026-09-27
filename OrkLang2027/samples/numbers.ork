@@ -1,0 +1,68 @@
+// Numeric types demo: int, long, float, double.
+
+// --- int (32-bit) ---
+var a: int = 7;
+var b: int = 2;
+print "int:";
+print a + b;
+print a - b;
+print a * b;
+print a / b;        // truncates -> 3
+print a % b;        // 1
+print 2147483647 + 1; // wraps -> -2147483648
+
+// --- long (64-bit) ---
+var big: long = 3000000000L;
+var auto: long = 5000000000; // too big for int, so the literal is a long
+print "long:";
+print big * 2;
+print big + auto;
+print big / 7;
+
+// --- float (32-bit) ---
+var f: float = 1.5f;
+var g: float = 2f;
+print "float:";
+print f * g;
+print f / 4f;
+print 1f / 3f;
+
+// --- double (64-bit) ---
+var d: double = 3.14159;
+print "double:";
+print d * 2.0;
+print 1.0 / 3.0;
+print 10.0 % 3.0;
+
+// --- implicit widening: int -> long -> float -> double ---
+print "widening:";
+var fromInt: long = a;       // int -> long
+var fromLong: float = big;   // long -> float
+var fromFloat: double = f;   // float -> double
+print fromInt;
+print fromLong;
+print fromFloat;
+print a + big;   // long
+print a + f;     // float
+print f + d;     // double
+print a == 7.0;  // true, compared as double
+
+// --- functions and arrays ---
+fun average(values: double[]): double {
+	var sum: double = 0.0;
+	var i: int = 0;
+	while (i < values.length) {
+		sum = sum + values[i];
+		i = i + 1;
+	}
+	return sum / values.length;
+}
+
+fun square(x: long): long {
+	return x * x;
+}
+
+print "functions:";
+print average([1, 2, 3.5, 4]); // int elements widen to double
+print square(a);                // int argument widens to long
+print square(100000L);

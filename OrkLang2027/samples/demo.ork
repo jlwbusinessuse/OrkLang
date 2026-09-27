@@ -4,8 +4,8 @@ fun greet(name: string): nil {
 
 greet("Ork");
 
-var total: number = 0;
-var i: number = 1;
+var total: int = 0;
+var i: int = 1;
 while (i <= 5) {
 	total = total + i;
 	i = i + 1;

@@ -235,6 +235,13 @@ namespace OrkLang2027.Typing
 
         private OrkType Infer(Expr expr)
         {
+            OrkType type = InferCore(expr);
+            expr.Type = type;
+            return type;
+        }
+
+        private OrkType InferCore(Expr expr)
+        {
             switch (expr)
             {
                 case Expr.Literal literal:
@@ -242,7 +249,10 @@ namespace OrkLang2027.Typing
                     {
                         null => OrkType.Nil,
                         bool => OrkType.Bool,
-                        double => OrkType.Number,
+                        int => OrkType.Int,
+                        long => OrkType.Long,
+                        float => OrkType.Float,
+                        double => OrkType.Double,
                         string => OrkType.String,
                         _ => throw Error(0, $"Unsupported literal {literal.Value}"),
                     };
@@ -253,12 +263,19 @@ namespace OrkLang2027.Typing
                 case Expr.Unary unary:
                 {
                     OrkType right = Infer(unary.Right);
-                    OrkType expected = unary.Op.Type == TokenType.Minus ? OrkType.Number : OrkType.Bool;
-                    if (right.Kind != expected.Kind)
+                    if (unary.Op.Type == TokenType.Minus)
                     {
-                        throw Error(unary.Op.Line, $"Operator '{unary.Op.Lexeme}' requires {expected}, got {right}.");
+                        if (!right.IsNumeric)
+                        {
+                            throw Error(unary.Op.Line, $"Operator '-' requires a numeric operand, got {right}.");
+                        }
+                        return right;
                     }
-                    return expected;
+                    if (right.Kind != TypeKind.Bool)
+                    {
+                        throw Error(unary.Op.Line, $"Operator '{unary.Op.Lexeme}' requires bool, got {right}.");
+                    }
+                    return OrkType.Bool;
                 }
 
                 case Expr.Binary binary:
@@ -323,8 +340,9 @@ namespace OrkLang2027.Typing
                     for (int i = 1; i < arrayLiteral.Elements.Count; i++)
                     {
                         OrkType next = Infer(arrayLiteral.Elements[i]);
-                        if (element.IsAssignableFrom(next)) continue;
-                        if (next.IsAssignableFrom(element)) { element = next; continue; }
+                        if (element.IsNumeric && next.IsNumeric) { element = OrkType.Widest(element, next); continue; }
+                        if (element.Matches(next)) continue;
+                        if (next.Matches(element)) { element = next; continue; }
                         throw Error(arrayLiteral.Bracket.Line, $"Array elements must all have the same type; expected {element} but got {next}.");
                     }
                     return OrkType.ArrayOf(element);
@@ -356,7 +374,7 @@ namespace OrkLang2027.Typing
                     {
                         throw Error(get.Name.Line, $"Only arrays and strings have a '.length', got {target}.");
                     }
-                    return OrkType.Number;
+                    return OrkType.Int;
                 }
 
                 default:
@@ -372,9 +390,9 @@ namespace OrkLang2027.Typing
                 throw Error(bracket.Line, $"Only arrays can be indexed, got {target}.");
             }
             OrkType index = Infer(indexExpr);
-            if (index.Kind != TypeKind.Number)
+            if (!index.IsInteger)
             {
-                throw Error(bracket.Line, $"Array index must be a number, got {index}.");
+                throw Error(bracket.Line, $"Array index must be int or long, got {index}.");
             }
             if (target.Element == null)
             {
@@ -393,16 +411,16 @@ namespace OrkLang2027.Typing
             switch (binary.Op.Type)
             {
                 case TokenType.Plus:
-                    if (left.Kind == TypeKind.Number && right.Kind == TypeKind.Number) return OrkType.Number;
+                    if (left.IsNumeric && right.IsNumeric) return OrkType.Widest(left, right);
                     if (left.Kind == TypeKind.String || right.Kind == TypeKind.String) return OrkType.String;
-                    throw Error(line, $"Operator '+' requires two numbers or a string operand, got {left} and {right}.");
+                    throw Error(line, $"Operator '+' requires two numeric operands or a string operand, got {left} and {right}.");
 
                 case TokenType.Minus:
                 case TokenType.Star:
                 case TokenType.Slash:
                 case TokenType.Percent:
                     RequireNumbers(left, right, op, line);
-                    return OrkType.Number;
+                    return OrkType.Widest(left, right);
 
                 case TokenType.Greater:
                 case TokenType.GreaterEqual:
@@ -413,7 +431,7 @@ namespace OrkLang2027.Typing
 
                 case TokenType.EqualEqual:
                 case TokenType.BangEqual:
-                    if (!left.IsAssignableFrom(right) && !right.IsAssignableFrom(left))
+                    if (!(left.IsNumeric && right.IsNumeric) && !left.Matches(right) && !right.Matches(left))
                     {
                         throw Error(line, $"Cannot compare {left} with {right} using '{op}'.");
                     }
@@ -426,9 +444,9 @@ namespace OrkLang2027.Typing
 
         private static void RequireNumbers(OrkType left, OrkType right, string op, int line)
         {
-            if (left.Kind != TypeKind.Number || right.Kind != TypeKind.Number)
+            if (!left.IsNumeric || !right.IsNumeric)
             {
-                throw Error(line, $"Operator '{op}' requires number operands, got {left} and {right}.");
+                throw Error(line, $"Operator '{op}' requires numeric operands, got {left} and {right}.");
             }
         }
 

@@ -46,5 +46,6 @@ namespace OrkLang2027.Bytecode
         Halt,
 
         CheckType,    // operand: expected ValueKind; peeks top value, errors on mismatch
+        Convert,      // operand: target numeric ValueKind; converts top value in place
     }
 }

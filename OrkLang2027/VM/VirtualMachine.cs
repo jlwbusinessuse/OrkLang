@@ -131,31 +131,16 @@ namespace OrkLang2027.VM
                     }
 
                     case OpCode.Greater:
-                        BinaryNumberOp((a, b) => Value.FromBool(a > b));
-                        break;
-
                     case OpCode.Less:
-                        BinaryNumberOp((a, b) => Value.FromBool(a < b));
+                    case OpCode.Subtract:
+                    case OpCode.Multiply:
+                    case OpCode.Divide:
+                    case OpCode.Modulo:
+                        NumericBinary(instruction);
                         break;
 
                     case OpCode.Add:
                         DoAdd();
-                        break;
-
-                    case OpCode.Subtract:
-                        BinaryNumberOp((a, b) => Value.FromNumber(a - b));
-                        break;
-
-                    case OpCode.Multiply:
-                        BinaryNumberOp((a, b) => Value.FromNumber(a * b));
-                        break;
-
-                    case OpCode.Divide:
-                        BinaryNumberOp((a, b) => Value.FromNumber(a / b));
-                        break;
-
-                    case OpCode.Modulo:
-                        BinaryNumberOp((a, b) => Value.FromNumber(a % b));
                         break;
 
                     case OpCode.Not:
@@ -163,12 +148,18 @@ namespace OrkLang2027.VM
                         break;
 
                     case OpCode.Negate:
-                        if (Peek(0).Kind != ValueKind.Number)
+                    {
+                        Value operand = Pop();
+                        Push(operand.Kind switch
                         {
-                            throw new VmRuntimeException("Operand must be a number.");
-                        }
-                        Push(Value.FromNumber(-Pop().AsNumber));
+                            ValueKind.Int => Value.FromInt(unchecked(-operand.AsInt)),
+                            ValueKind.Long => Value.FromLong(unchecked(-operand.AsLong)),
+                            ValueKind.Float => Value.FromFloat(-operand.AsFloat),
+                            ValueKind.Double => Value.FromDouble(-operand.AsDouble),
+                            _ => throw new VmRuntimeException("Operand must be a number."),
+                        });
                         break;
+                    }
 
                     case OpCode.Print:
                         Output.WriteLine(Pop().ToString());
@@ -233,6 +224,18 @@ namespace OrkLang2027.VM
                         break;
                     }
 
+                    case OpCode.Convert:
+                    {
+                        var target = (ValueKind)ReadByte(frame);
+                        Value top = Pop();
+                        if (!top.IsNumeric)
+                        {
+                            throw new VmRuntimeException($"Cannot convert {top.Kind.ToString().ToLowerInvariant()} to {target.ToString().ToLowerInvariant()}.");
+                        }
+                        Push(top.ConvertTo(target));
+                        break;
+                    }
+
                     case OpCode.BuildArray:
                     {
                         int count = ReadByte(frame);
@@ -269,11 +272,11 @@ namespace OrkLang2027.VM
                         Value target = Pop();
                         if (target.Kind == ValueKind.Array)
                         {
-                            Push(Value.FromNumber(target.AsArray.Length));
+                            Push(Value.FromInt(target.AsArray.Length));
                         }
                         else if (target.Kind == ValueKind.String)
                         {
-                            Push(Value.FromNumber(target.AsString.Length));
+                            Push(Value.FromInt(target.AsString.Length));
                         }
                         else
                         {
@@ -294,14 +297,14 @@ namespace OrkLang2027.VM
             {
                 throw new VmRuntimeException("Only arrays can be indexed.");
             }
-            if (index.Kind != ValueKind.Number)
+            if (!index.IsInteger)
             {
-                throw new VmRuntimeException("Array index must be a number.");
+                throw new VmRuntimeException("Array index must be an integer.");
             }
 
             try
             {
-                return target.AsArray.Get((int)index.AsNumber);
+                return target.AsArray.Get((int)index.AsLong);
             }
             catch (IndexOutOfRangeException ex)
             {
@@ -315,14 +318,14 @@ namespace OrkLang2027.VM
             {
                 throw new VmRuntimeException("Only arrays can be indexed.");
             }
-            if (index.Kind != ValueKind.Number)
+            if (!index.IsInteger)
             {
-                throw new VmRuntimeException("Array index must be a number.");
+                throw new VmRuntimeException("Array index must be an integer.");
             }
 
             try
             {
-                target.AsArray.Set((int)index.AsNumber, value);
+                target.AsArray.Set((int)index.AsLong, value);
             }
             catch (IndexOutOfRangeException ex)
             {
@@ -356,10 +359,9 @@ namespace OrkLang2027.VM
             Value b = Peek(0);
             Value a = Peek(1);
 
-            if (a.Kind == ValueKind.Number && b.Kind == ValueKind.Number)
+            if (a.IsNumeric && b.IsNumeric)
             {
-                Pop(); Pop();
-                Push(Value.FromNumber(a.AsNumber + b.AsNumber));
+                NumericBinary(OpCode.Add);
             }
             else if (a.Kind == ValueKind.String || b.Kind == ValueKind.String)
             {
@@ -372,16 +374,78 @@ namespace OrkLang2027.VM
             }
         }
 
-        private void BinaryNumberOp(Func<double, double, Value> op)
+        /// <summary>
+        /// Arithmetic/comparison on two numeric operands. Operands are widened to the wider kind
+        /// (int -> long -> float -> double). Integer math wraps on overflow and truncates on division.
+        /// </summary>
+        private void NumericBinary(OpCode op)
         {
-            if (Peek(0).Kind != ValueKind.Number || Peek(1).Kind != ValueKind.Number)
+            if (!Peek(0).IsNumeric || !Peek(1).IsNumeric)
             {
                 throw new VmRuntimeException("Operands must be numbers.");
             }
-            double b = Pop().AsNumber;
-            double a = Pop().AsNumber;
-            Push(op(a, b));
+            Value b = Pop();
+            Value a = Pop();
+            ValueKind kind = Value.NumericRank(a.Kind) >= Value.NumericRank(b.Kind) ? a.Kind : b.Kind;
+            a = a.ConvertTo(kind);
+            b = b.ConvertTo(kind);
+
+            Push(kind switch
+            {
+                ValueKind.Int => IntOp(op, a.AsInt, b.AsInt),
+                ValueKind.Long => LongOp(op, a.AsLong, b.AsLong),
+                ValueKind.Float => FloatOp(op, a.AsFloat, b.AsFloat),
+                _ => DoubleOp(op, a.AsDouble, b.AsDouble),
+            });
         }
+
+        private static Value IntOp(OpCode op, int a, int b) => op switch
+        {
+            OpCode.Add => Value.FromInt(unchecked(a + b)),
+            OpCode.Subtract => Value.FromInt(unchecked(a - b)),
+            OpCode.Multiply => Value.FromInt(unchecked(a * b)),
+            OpCode.Divide => b == 0 ? throw new VmRuntimeException("Division by zero.") : Value.FromInt(b == -1 ? unchecked(-a) : a / b),
+            OpCode.Modulo => b == 0 ? throw new VmRuntimeException("Division by zero.") : Value.FromInt(b == -1 ? 0 : a % b),
+            OpCode.Greater => Value.FromBool(a > b),
+            OpCode.Less => Value.FromBool(a < b),
+            _ => throw new VmRuntimeException($"Unsupported numeric operation {op}."),
+        };
+
+        private static Value LongOp(OpCode op, long a, long b) => op switch
+        {
+            OpCode.Add => Value.FromLong(unchecked(a + b)),
+            OpCode.Subtract => Value.FromLong(unchecked(a - b)),
+            OpCode.Multiply => Value.FromLong(unchecked(a * b)),
+            OpCode.Divide => b == 0 ? throw new VmRuntimeException("Division by zero.") : Value.FromLong(b == -1 ? unchecked(-a) : a / b),
+            OpCode.Modulo => b == 0 ? throw new VmRuntimeException("Division by zero.") : Value.FromLong(b == -1 ? 0 : a % b),
+            OpCode.Greater => Value.FromBool(a > b),
+            OpCode.Less => Value.FromBool(a < b),
+            _ => throw new VmRuntimeException($"Unsupported numeric operation {op}."),
+        };
+
+        private static Value FloatOp(OpCode op, float a, float b) => op switch
+        {
+            OpCode.Add => Value.FromFloat(a + b),
+            OpCode.Subtract => Value.FromFloat(a - b),
+            OpCode.Multiply => Value.FromFloat(a * b),
+            OpCode.Divide => Value.FromFloat(a / b),
+            OpCode.Modulo => Value.FromFloat(a % b),
+            OpCode.Greater => Value.FromBool(a > b),
+            OpCode.Less => Value.FromBool(a < b),
+            _ => throw new VmRuntimeException($"Unsupported numeric operation {op}."),
+        };
+
+        private static Value DoubleOp(OpCode op, double a, double b) => op switch
+        {
+            OpCode.Add => Value.FromDouble(a + b),
+            OpCode.Subtract => Value.FromDouble(a - b),
+            OpCode.Multiply => Value.FromDouble(a * b),
+            OpCode.Divide => Value.FromDouble(a / b),
+            OpCode.Modulo => Value.FromDouble(a % b),
+            OpCode.Greater => Value.FromBool(a > b),
+            OpCode.Less => Value.FromBool(a < b),
+            _ => throw new VmRuntimeException($"Unsupported numeric operation {op}."),
+        };
 
         private byte ReadByte(CallFrame frame) => frame.Function.Chunk[frame.InstructionPointer++];
 

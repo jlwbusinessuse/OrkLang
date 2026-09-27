@@ -88,6 +88,7 @@ namespace OrkLang2027.Compiling
                     if (returnStmt.Value != null)
                     {
                         CompileExpr(returnStmt.Value);
+                        if (_returnType != null) EmitConvert(returnStmt.Value.Type, _returnType, returnStmt.Keyword.Line);
                     }
                     else
                     {
@@ -174,8 +175,16 @@ namespace OrkLang2027.Compiling
         private void CompileVarDecl(Stmt.VarDecl varDecl)
         {
             CompileExpr(varDecl.Initializer);
+            EmitConvert(varDecl.Initializer.Type, varDecl.Type, varDecl.Name.Line);
             EmitCheckType(varDecl.Type, varDecl.Name.Line);
             DefineVariable(varDecl.Name);
+        }
+
+        private void EmitConvert(OrkType? from, OrkType to, int line)
+        {
+            if (from == null || !from.IsNumeric || !to.IsNumeric || from.Kind == to.Kind) return;
+            Emit(OpCode.Convert, line);
+            EmitByte((byte)to.RuntimeKind, line);
         }
 
         private void EmitCheckType(OrkType type, int line)
@@ -240,7 +249,11 @@ namespace OrkLang2027.Compiling
 
                 case Expr.Assign assign:
                     CompileExpr(assign.Value);
-                    if (assign.CheckedType != null) EmitCheckType(assign.CheckedType, assign.Name.Line);
+                    if (assign.CheckedType != null)
+                    {
+                        EmitConvert(assign.Value.Type, assign.CheckedType, assign.Name.Line);
+                        EmitCheckType(assign.CheckedType, assign.Name.Line);
+                    }
                     CompileVariableSet(assign.Name);
                     break;
 
@@ -252,6 +265,7 @@ namespace OrkLang2027.Compiling
                     foreach (var element in arrayLiteral.Elements)
                     {
                         CompileExpr(element);
+                        if (arrayLiteral.Type?.Element != null) EmitConvert(element.Type, arrayLiteral.Type.Element, arrayLiteral.Bracket.Line);
                     }
                     Emit(OpCode.BuildArray, arrayLiteral.Bracket.Line);
                     EmitByte((byte)arrayLiteral.Elements.Count, arrayLiteral.Bracket.Line);
@@ -267,7 +281,11 @@ namespace OrkLang2027.Compiling
                     CompileExpr(indexSet.Target);
                     CompileExpr(indexSet.Index);
                     CompileExpr(indexSet.Value);
-                    if (indexSet.CheckedType != null) EmitCheckType(indexSet.CheckedType, indexSet.Bracket.Line);
+                    if (indexSet.CheckedType != null)
+                    {
+                        EmitConvert(indexSet.Value.Type, indexSet.CheckedType, indexSet.Bracket.Line);
+                        EmitCheckType(indexSet.CheckedType, indexSet.Bracket.Line);
+                    }
                     Emit(OpCode.IndexSet, indexSet.Bracket.Line);
                     break;
 
@@ -288,9 +306,13 @@ namespace OrkLang2027.Compiling
         private void CompileCall(Expr.Call call)
         {
             CompileExpr(call.Callee);
-            foreach (var arg in call.Arguments)
+            for (int i = 0; i < call.Arguments.Count; i++)
             {
-                CompileExpr(arg);
+                CompileExpr(call.Arguments[i]);
+                if (call.Callee.Type is { Kind: TypeKind.Function } fnType && i < fnType.Parameters.Count)
+                {
+                    EmitConvert(call.Arguments[i].Type, fnType.Parameters[i], call.Paren.Line);
+                }
             }
             Emit(OpCode.Call, call.Paren.Line);
             EmitByte((byte)call.Arguments.Count, call.Paren.Line);
@@ -361,8 +383,14 @@ namespace OrkLang2027.Compiling
 
         private void CompileBinary(Expr.Binary binary)
         {
+            OrkType? operandType = binary.Left.Type is { IsNumeric: true } l && binary.Right.Type is { IsNumeric: true } r
+                ? OrkType.Widest(l, r)
+                : null;
+
             CompileExpr(binary.Left);
+            if (operandType != null) EmitConvert(binary.Left.Type, operandType, binary.Op.Line);
             CompileExpr(binary.Right);
+            if (operandType != null) EmitConvert(binary.Right.Type, operandType, binary.Op.Line);
 
             switch (binary.Op.Type)
             {
@@ -387,7 +415,10 @@ namespace OrkLang2027.Compiling
             {
                 null => Value.Nil,
                 bool b => Value.FromBool(b),
-                double d => Value.FromNumber(d),
+                double d => Value.FromDouble(d),
+                float f => Value.FromFloat(f),
+                int i => Value.FromInt(i),
+                long l => Value.FromLong(l),
                 string s => Value.FromString(s),
                 _ => throw new CompileException($"Unsupported literal {literal.Value}"),
             };

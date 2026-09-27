@@ -30,6 +30,8 @@ namespace OrkLang2027.Lexing
             ["while"] = TokenType.While,
             ["int"] = TokenType.Int,
             ["double"] = TokenType.Double,
+            ["long"] = TokenType.Long,
+            ["float"] = TokenType.Float,
             ["bool"] = TokenType.Bool,
             ["string"] = TokenType.StringType,
             ["void"] = TokenType.Void,
@@ -157,16 +159,54 @@ namespace OrkLang2027.Lexing
 
         private void ScanNumber()
         {
+            var culture = System.Globalization.CultureInfo.InvariantCulture;
+            bool isFloating = false;
             while (char.IsDigit(Peek())) Advance();
 
             if (Peek() == '.' && char.IsDigit(PeekNext()))
             {
+                isFloating = true;
                 Advance();
                 while (char.IsDigit(Peek())) Advance();
             }
 
             string text = _source[_start.._current];
-            AddToken(TokenType.Number, double.Parse(text, System.Globalization.CultureInfo.InvariantCulture));
+
+            if (Peek() is 'f' or 'F')
+            {
+                Advance();
+                AddToken(TokenType.Number, float.Parse(text, culture));
+                return;
+            }
+
+            if (Peek() is 'L' or 'l')
+            {
+                if (isFloating) throw new LexException($"Invalid long literal '{text}L'.", _line);
+                Advance();
+                if (!long.TryParse(text, System.Globalization.NumberStyles.None, culture, out long l))
+                {
+                    throw new LexException($"Integer literal '{text}' is too large for long.", _line);
+                }
+                AddToken(TokenType.Number, l);
+                return;
+            }
+
+            if (isFloating)
+            {
+                AddToken(TokenType.Number, double.Parse(text, culture));
+            }
+            else if (int.TryParse(text, System.Globalization.NumberStyles.None, culture, out int i))
+            {
+                AddToken(TokenType.Number, i);
+            }
+            else if (long.TryParse(text, System.Globalization.NumberStyles.None, culture, out long l))
+            {
+                AddToken(TokenType.Number, l);
+            }
+            else
+            {
+                throw new LexException($"Integer literal '{text}' is too large.", _line);
+            }
         }
 
         private void ScanString()

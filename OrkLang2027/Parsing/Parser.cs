@@ -17,7 +17,7 @@ namespace OrkLang2027.Parsing
     /// funDecl        -> "fun" IDENTIFIER "(" parameters? ")" ":" type block
     /// parameters     -> IDENTIFIER ":" type ( "," IDENTIFIER ":" type )*
     /// varDecl        -> "var" IDENTIFIER ":" type "=" expression ";"
-    /// type           -> ("number"|"string"|"bool"|"nil") ( "[" "]" )*
+    /// type           -> ("int"|"long"|"float"|"double"|"string"|"bool"|"nil") ( "[" "]" )*
     /// statement      -> exprStmt | printStmt | block | ifStmt | whileStmt | forStmt | returnStmt
     /// expression     -> assignment
     /// assignment     -> IDENTIFIER "=" assignment | logic_or
@@ -61,8 +61,11 @@ namespace OrkLang2027.Parsing
             if (Match(TokenType.StringType)) type = OrkType.String;
             else if (Match(TokenType.Bool)) type = OrkType.Bool;
             else if (Match(TokenType.Nil)) type = OrkType.Nil;
-            else if (Check(TokenType.Identifier) && Peek().Lexeme == "number") { Advance(); type = OrkType.Number; }
-            else throw Error(Peek(), "Expect type (number, string, bool, nil or T[]).");
+            else if (Match(TokenType.Int)) type = OrkType.Int;
+            else if (Match(TokenType.Long)) type = OrkType.Long;
+            else if (Match(TokenType.Float)) type = OrkType.Float;
+            else if (Match(TokenType.Double)) type = OrkType.Double;
+            else throw Error(Peek(), "Expect type (int, long, float, double, string, bool, nil or T[]).");
 
             while (Match(TokenType.LeftBracket))
             {

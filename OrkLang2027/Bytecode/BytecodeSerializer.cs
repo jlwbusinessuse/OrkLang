@@ -110,8 +110,17 @@ namespace OrkLang2027.Bytecode
                 case ValueKind.Bool:
                     writer.Write(value.AsBool);
                     break;
-                case ValueKind.Number:
-                    writer.Write(value.AsNumber);
+                case ValueKind.Double:
+                    writer.Write(value.AsDouble);
+                    break;
+                case ValueKind.Float:
+                    writer.Write(value.AsFloat);
+                    break;
+                case ValueKind.Int:
+                    writer.Write(value.AsInt);
+                    break;
+                case ValueKind.Long:
+                    writer.Write(value.AsLong);
                     break;
                 case ValueKind.String:
                     writer.Write(value.AsString);
@@ -131,7 +140,10 @@ namespace OrkLang2027.Bytecode
             {
                 ValueKind.Nil => Value.Nil,
                 ValueKind.Bool => Value.FromBool(reader.ReadBoolean()),
-                ValueKind.Number => Value.FromNumber(reader.ReadDouble()),
+                ValueKind.Double => Value.FromDouble(reader.ReadDouble()),
+                ValueKind.Float => Value.FromFloat(reader.ReadSingle()),
+                ValueKind.Int => Value.FromInt(reader.ReadInt32()),
+                ValueKind.Long => Value.FromLong(reader.ReadInt64()),
                 ValueKind.String => Value.FromString(reader.ReadString()),
                 ValueKind.Function => Value.FromFunction(ReadFunction(reader)),
                 _ => throw new InvalidDataException($"Cannot deserialize value kind {kind}."),

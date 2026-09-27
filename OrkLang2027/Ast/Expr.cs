@@ -5,6 +5,9 @@ namespace OrkLang2027.Ast
 {
     internal abstract class Expr
     {
+        /// <summary>Static type of this expression, filled in by the type checker.</summary>
+        public OrkType? Type { get; set; }
+
         internal sealed class Literal : Expr
         {
             public object? Value { get; }
